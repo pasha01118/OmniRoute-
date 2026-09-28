@@ -1,5 +1,29 @@
 # OmniRoute Dashboard Redesign - Design System Specification
 
+> ## ⚠️ Verification Notice — read before implementing
+>
+> Every claim in this document was **checked against the OmniRoute working tree at commit `5764027` (v3.8.50)**. Three foundational assumptions turned out to be wrong. This specification remains the *design intent*; the corrections below are the *implementation truth*.
+>
+> | This document specifies | Actual state, measured | Impact |
+> |---|---|---|
+> | **DM Sans** typography | The app loads **Inter** via `next/font/google` — the only `next/font` call in the repo (`src/app/layout.tsx:1,14-17,138`). `grep -rniE "dm.?sans" src/` returns **zero files**. | A real change, not a toggle. Invalidates the 590-line `globals.css` type scale and every fixed-height element. |
+> | **Phosphor Icons** (`@phosphor-icons/react`) | The app ships **Material Symbols** `^0.45.2`, self-hosted via `@import` in `globals.css` (`layout.tsx:97-99`, #3695). `node_modules/@phosphor-icons` **does not exist**. | New dependency + migration across **135** shared components + a full accessible-name re-audit. |
+> | **Framer Motion** as current stack | **Not declared** in `package.json`; **zero** `from "framer-motion"` imports in `src/`. Present in `node_modules` only transitively. | A legitimate *new* dependency — but it must be budgeted as an addition, not found in the stack. Note the current major is well past 11 and React is pinned at `19.2.8`; verify compatibility before adopting. |
+> | "Dark-only mode" | The product ships **light + dark + system** with **7** colour presets (`src/store/themeStore.ts:56-63`). | Dark-only is a **removal of capability**, including the light variant of the 43-locale RTL experience. It is a decision, not a default. |
+> | `Table.tsx` as a new component | **`src/shared/components/DataTable.tsx` already exists**, plus `ColumnToggle.tsx`, `FilterBar.tsx`. | Read and audit `DataTable` **before** writing a new `Table`, or you will produce two competing tables. |
+> | `Tabs.tsx` / `Toast.tsx` as new | Neither exists at `src/shared/components/`. `docs/Tabs.tsx` (docs-scoped) and `NotificationToast.tsx` (208 lines) do. | Decide: extend or rename. |
+> | Contrast `14.2:1` for Neon Ivory on Charcoal | Plausible but **never verified**. | Compute every token pair in CI rather than asserting it in prose. §7 below repeats this figure as a target, not a measurement. |
+>
+> **Measured component inventory (replaces any estimate in this document):** `DashboardLayout` 139 · `Sidebar` **758** · `Header` 286 · `Breadcrumbs` 182 · `Card` 141 · `Button` 88 · `Input` 157 · `Select` 115 · `Modal` 267 · `Badge` 68 · `Avatar` 81 · `NotificationToast` 208 · `globals.css` 590 · **135** shared component files total.
+>
+> **Also already present and absent from this spec:** `DataTable` · `ColumnToggle` · `FilterBar` · `EmptyState` · `ErrorPageScaffold` · `Loading` · `InfoTooltip` · `CommandPalette` · `Checkbox` · `Collapsible` · `NavigationProgress` · `DegradationBadge` · `MonacoEditor` · `PresetSlider` — adopt rather than duplicate.
+>
+> **Translation cost:** the i18n UI-coverage gate is frozen at **100%** across **43** locales. Every new user-facing string requires **43 translations**. A component with 10 strings costs 430 translation units. This is not budgeted anywhere in the original roadmap.
+>
+> **Full analysis:** [`10-ux-design.md`](./10-ux-design.md) §2 lists all four corrections in detail.
+
+---
+
 ## 1. Design Vision
 
 **Theme**: Charcoal Metallic + Neon Accents + Neon Ivory Text  
@@ -7,8 +31,6 @@
 **Typography**: DM Sans (premium modern, geometric, open counters for small-size readability)  
 **Icons**: Phosphor Icons (duotone support, optimal at 16-24px)  
 **Animations**: Framer Motion + CSS (GPU-accelerated, reduced-motion compliant)
-
----
 
 ## 2. Color System (40+ CSS Custom Properties)
 
@@ -115,6 +137,8 @@
 --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
 ```
 
+> **Note.** The app currently sets `--font-inter` via `next/font/google` in `src/app/layout.tsx:14-17` and applies `font-sans` at `:138`. Changing `--font-sans` here is the single line that changes the typeface — but it invalidates every fixed-height UI element and the whole 590-line `globals.css` type scale. Budget it as a real change (see the notice above).
+
 ### 2.9 Animation Tokens
 
 ```css
@@ -155,6 +179,8 @@
   --animate-border-glow: borderGlow 2s ease-in-out infinite;
 }
 ```
+
+> **Migration note.** `src/app/globals.css` is **590 lines** and every one of the 135 shared components references the current custom-property names. Do **not** replace this block wholesale. Introduce the new token names alongside the old ones, migrate component-by-component, then remove the old names once `grep` finds zero references. A big-bang rewrite of a stylesheet that 135 components depend on is the most likely way to produce a visually broken, hard-to-bisect regression.
 
 ---
 
@@ -230,6 +256,8 @@
 
 ### 4.5 Table.tsx (New Component)
 
+> ⚠️ `DataTable.tsx` **already exists** at `src/shared/components/DataTable.tsx`, along with `ColumnToggle.tsx` and `FilterBar.tsx`. The dashboard has heavy table usage across `providers`, `costs`, `logs`, and `usage`. Read and audit `DataTable` before writing this component, or the redesign will produce two competing tables — exactly the inconsistency it is meant to remove. See [`10-ux-design.md`](./10-ux-design.md) §3.2.
+
 ```tsx
 // Header
 <thead className="bg-metallic-mid text-neon-ivory border-b border-neon-cyan">
@@ -254,6 +282,8 @@
 ```
 
 ### 4.6 Tabs.tsx
+
+> ⚠️ No `Tabs.tsx` exists at `src/shared/components/`. The only one is `src/shared/components/docs/Tabs.tsx`, which is docs-scoped (it has a `.stories.tsx` alongside it). Decide whether to promote that one or write a new shared primitive.
 
 ```tsx
 // Tab list
@@ -291,6 +321,8 @@
 </div>
 ```
 
+> **Existing inconsistency to fix in passing.** `MitmProxyTab.tsx:147-170` uses a **native `confirm()`** for certificate regeneration rather than this `Modal`. That is both an accessibility gap and an inconsistency against the app's own system.
+
 ### 4.8 Badge.tsx
 
 ```tsx
@@ -322,6 +354,8 @@ const variants = {
 
 ### 4.10 Toast.tsx
 
+> ⚠️ No `Toast.tsx` exists. `src/shared/components/NotificationToast.tsx` (208 lines) is the current implementation. Either rename it to `Toast.tsx` or make this a new primitive alongside it — but not both, or the dashboard will have two toast systems.
+
 ```tsx
 // Semantic left border
 const toastVariants = {
@@ -350,6 +384,8 @@ const toastVariants = {
 ## 5. Animation System (Framer Motion)
 
 ### 5.1 Animation Utilities (`src/shared/lib/animations.ts`)
+
+> ⚠️ This file does not exist yet. The directory `src/shared/lib/` **does** exist, so the path is valid. Note that `framer-motion` is **not** a declared dependency — see the notice above.
 
 ```typescript
 import { Variants } from 'framer-motion';
@@ -476,6 +512,8 @@ body::before {
 
 ### 6.2 Sidebar.tsx (Key Changes)
 
+> Measured size: **758 lines** — the largest shared component in the redesign. It is state-heavy, so restyle it in stages behind a visual-regression gate rather than in one pass. See [`10-ux-design.md`](./10-ux-design.md) §6 phase 4.
+
 ```tsx
 // Background gradient
 <aside className="bg-gradient-to-b from-metallic-elevated to-metallic-bg 
@@ -524,13 +562,15 @@ body::before {
 
 | Criteria | Target | Implementation |
 |----------|--------|----------------|
-| **Text Contrast** | 14.2:1 | Neon Ivory (#FFF8E7) on Charcoal (#0A0E14) |
-| **Border/Icon Contrast** | 3:1+ | Neon colors on metallic backgrounds |
+| **Text Contrast** | ≥ 4.5:1 (AA) | Neon Ivory `#FFF8E7` on Charcoal `#0A0E14` — **verify in CI, do not assume** |
+| **Border/Icon Contrast** | ≥ 3:1 (WCAG 1.4.11) | Neon colors on metallic backgrounds — test at 1px border width |
 | **Focus Rings** | 4px visible | Neon cyan ring on all focusable |
 | **Reduced Motion** | Instant fallback | `useReducedMotion()` guard on all Framer Motion |
 | **Color Blind Safe** | Tested | Deuteranopia/Protanopia simulators |
 | **Touch Targets** | ≥44×44pt | Minimum sizing on all interactive |
 | **Keyboard** | Logical order | Skip links, focus management |
+
+> **Two corrections to this table.** (1) The `14.2:1` figure previously stated here was never measured — it is a plausible estimate, not a result. Add a CI check that computes every token pair and fails below threshold, because **neon accents on a charcoal ground are the risk area**: a saturated 1px border can easily fall below 3:1 while still looking correct. (2) Add a row for the **i18n gate**: UI coverage is frozen at **100%** across **43** locales, so every new string needs 43 translations before the build passes. See [`10-ux-design.md`](./10-ux-design.md) §5.3 and §3.6.
 
 ---
 
@@ -538,11 +578,11 @@ body::before {
 
 | Concern | Mitigation |
 |---------|------------|
-| **Bundle Size** | Framer Motion ~25KB gz, Phosphor tree-shakeable |
+| **Bundle Size** | Framer Motion ~25KB gz (*new dep — budget it*); Material Symbols is self-hosted, tree-shakeable by ligature |
 | **Blur Performance** | Limit glassmorphism to key surfaces, `will-change: backdrop-filter` |
 | **Neon Animations** | GPU-accelerated (`will-change: box-shadow, transform`) |
 | **Large Lists** | Only animate mounted items (virtualization compatible) |
-| **Dark Mode Only** | Single theme reduces CSS complexity |
+| **Dark Mode Only** | Single theme reduces CSS complexity — but this **removes** the existing light and system modes; see the notice above |
 
 ---
 
@@ -551,8 +591,11 @@ body::before {
 ```json
 {
   "dependencies": {
-    "@phosphor-icons/react": "^2.1.0",
     "framer-motion": "^11.0.0"
   }
 }
 ```
+
+> **`@phosphor-icons/react` has been removed from this list — optionally.** The app already ships **Material Symbols** `^0.45.2`, self-hosted via `@import "material-symbols/outlined.css"` in `globals.css` (`src/app/layout.tsx:97-99`, issue #3695). Adopting Phosphor means a new runtime dependency, a dual-icon-set migration across **135** shared components, and a re-audit of every icon's accessible name. **Recommendation:** keep Material Symbols and add a thin `Icon.tsx` abstraction so the icon system has a single seam. Revisit Phosphor only if a design review genuinely requires the duotone treatment.
+>
+> **Framer Motion remains required** for §5 and is genuinely new. Note the current major is well past 11 and OmniRoute pins React at `19.2.8` exactly — verify Motion/React 19 compatibility before adopting, and check the frozen bundle-size ratchet (`config/quality/quality-baseline.json`, currently 8,045) so the addition is visible.

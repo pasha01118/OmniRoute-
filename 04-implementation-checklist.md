@@ -1,10 +1,56 @@
 # OmniRoute Dashboard Redesign - Implementation Checklist
 
+> ## ⚠️ Verification Notice — the file inventory in §8 is partly wrong
+>
+> The checklist QA criteria in §1–§7 and §9–§12 remain valid and should be used as written. **§8 (File Inventory) required correction** after measuring the OmniRoute tree at commit `5764027`.
+>
+> ### §8 corrections
+>
+> | Entry | This checklist says | Measured reality |
+> |---|---|---|
+> | `src/shared/components/Icon.tsx` | New | **Correct** — does not exist. Must wrap Material Symbols (the installed set), not Phosphor. |
+> | `src/shared/components/Table.tsx` | New | **Partly wrong** — **`DataTable.tsx` already exists.** Audit it, then extend or replace. Creating a parallel `Table` guarantees the inconsistency this project is meant to remove. |
+> | `src/shared/components/Tabs.tsx` | Modified | **Wrong** — does not exist. Only `src/shared/components/docs/Tabs.tsx` (docs-scoped) exists. |
+> | `src/shared/components/Toast.tsx` | Modified | **Wrong** — does not exist. Only `NotificationToast.tsx` (208 lines) exists. |
+> | `src/shared/lib/animations.ts` | New | **Correct** — the file does not exist, and `src/shared/lib/` is a valid directory. |
+> | `globals.css` ~600 | Modified (rewrite) | **590 lines measured.** Also: rewrite **additively**, not big-bang — 135 components depend on the current custom-property names. |
+> | `HomePageClient.tsx` ~400 | Modified (major) | **1,385 lines.** Extract components before restyling. |
+> | `providers/page.tsx` ~200 | Modified | **1,951 lines.** Same — this is the single largest file in scope. |
+> | `settings/page.tsx` ~200 | Modified | **33 lines.** Trivial. |
+> | `Sidebar.tsx` ~300 | Modified (major) | 758 total; "~300" was a delta estimate. Ambiguous — restate as "758 lines, staged". |
+> | `Header.tsx` ~100 | Modified | 286 total. |
+> | `Breadcrumbs.tsx` ~30 | Modified | 182 total. |
+> | — | not listed | **Already exists, adopt not duplicate:** `DataTable` · `ColumnToggle` · `FilterBar` · `EmptyState` · `ErrorPageScaffold` · `Loading` · `InfoTooltip` · `CommandPalette` · `Checkbox` · `Collapsible` · `NavigationProgress` |
+>
+> ### §9 (New Dependencies) corrections
+>
+> | Dependency | Status |
+> |---|---|
+> | `@phosphor-icons/react ^2.1.0` | **Optional, not required.** The app ships Material Symbols `^0.45.2` self-hosted. Adopting Phosphor is a 135-component migration plus a new dependency. Recommend keeping Material Symbols behind a thin `Icon.tsx` seam. |
+> | `framer-motion ^11.0.0` | **Genuinely new — not installed.** Zero imports in `src/`. Verify Motion/React 19.2.8 compatibility and budget it in the bundle ratchet. Note the current major is well past 11. |
+> | DM Sans | **Not a dependency — a `next/font` swap.** Currently Inter via `layout.tsx:1`. Keep Inter unless there is a hard brand requirement; if changed, the full 590-line type scale needs re-audit. |
+>
+> ### §6.1 (Testing) correction
+>
+> "Unit Tests (Jest/Node)" → the project runs **Vitest 4.1.7 + Node-native** runners. **Jest is not installed** and no script references it. §11's `npm run test:vitest` is correct; §6.1's heading is not.
+>
+> ### §11 (Pre-PR) correction
+>
+> `npm install` and the `npm run …` commands are **correct** — the tree has `package-lock.json` and no pnpm/yarn/bun lockfile. The project **README** says pnpm; that is the error, not this checklist. Also add: `npm run dashboard-typecheck` is **mandatory** — `next.config.mjs:296` sets `typescript.ignoreBuildErrors: true`, so a green build is **not** evidence of type safety.
+>
+> ### Missing acceptance criteria
+>
+> The checklist has no item for the **i18n coverage gate**, which is frozen at **100%** across **43** locales. Add: "every new user-facing string has 43 translations, and `npm run check:i18n-ui-coverage` passes." Without it, Phase 1 will ship untranslated UI.
+>
+> **Full analysis:** [`10-ux-design.md`](./10-ux-design.md) §3 and §7.
+
+---
+
 ## 1. Visual Quality Checklist
 
 ### 1.1 Color & Theme
 - [ ] **No pure white text** - All text uses Neon Ivory (`#FFF8E7`) variants
-- [ ] **No emoji icons** - All icons from Phosphor (`@phosphor-icons/react`)
+- [ ] **No emoji icons** - All icons from the icon set (Material Symbols, behind an `Icon.tsx` seam — see notice above)
 - [ ] **Charcoal metallic backgrounds** - `#0A0E14` base with subtle gradients
 - [ ] **Thin neon borders** - 1-2px on ALL interactive surfaces
 - [ ] **Semantic neon colors** - Cyan (primary), Emerald (success), Amber (warning), Coral (error), Violet (special)
@@ -59,11 +105,12 @@
 ## 3. Accessibility Checklist (WCAG 2.1 AA)
 
 ### 3.1 Contrast & Color
-- [ ] **Text contrast** 14.2:1 (Neon Ivory on Charcoal) ✓
-- [ ] **Large text** ≥ 4.5:1
-- [ ] **UI components** (borders, icons) ≥ 3:1
+- [ ] **Text contrast** ≥ 4.5:1 (Neon Ivory on Charcoal) — **measure it; the `14.2:1` figure previously stated here was never verified**
+- [ ] **Large text** ≥ 3:1
+- [ ] **UI components** (borders, icons) ≥ 3:1 — **test at 1px border width; neon on charcoal is the risk area**
 - [ ] **Focus indicators** ≥ 3:1 against adjacent
 - [ ] **Color not sole indicator** - Icons + text for status
+- [ ] **CI contrast check exists** and fails below threshold
 
 ### 3.2 Keyboard Navigation
 - [ ] **All interactive** reachable via Tab
@@ -86,12 +133,18 @@
 - [ ] **CSS animations** respect `@media (prefers-reduced-motion: reduce)`
 - [ ] **Auto-playing** content has pause controls
 - [ ] **Scroll animations** instant final state
+- [ ] **`prefers-reduced-motion` is a blocking gate**, not a convention
 
 ### 3.5 Color Blind Safe
 - [ ] **Deuteranopia** (Coblis/Color Oracle) - verified
 - [ ] **Protanopia** - verified
 - [ ] **Tritanopia** - neon cyan/amber distinguishable
 - [ ] **Monochrome** - patterns/text distinguishable
+
+### 3.6 Internationalization
+- [ ] **UI coverage** 100% across all **43** locales (`npm run check:i18n-ui-coverage`)
+- [ ] **RTL** verified for `ar`, `fa`, `he`, `ur`
+- [ ] Every new user-facing string has **43** translations before the build passes
 
 ---
 
@@ -102,7 +155,8 @@
 - [ ] **Dashboard bundle** < 500KB gzipped
 - [ ] **Code splitting** by route (Next.js automatic)
 - [ ] **Dynamic imports** for heavy components (charts, editors)
-- [ ] **Phosphor Icons** tree-shaken (only used icons bundled)
+- [ ] **Icon set** tree-shaken (only used glyphs bundled)
+- [ ] **Framer Motion** addition visible in the frozen bundle-size ratchet (`config/quality/quality-baseline.json`, currently 8,045)
 
 ### 4.2 Runtime Performance
 - [ ] **60fps scrolling** on 1000+ item virtualized lists
@@ -110,6 +164,7 @@
 - [ ] **Blur effects** limited to key surfaces
 - [ ] **Neon glow** `will-change: box-shadow` on animated elements
 - [ ] **Stagger** only mounted items (virtualization compatible)
+- [ ] **Live-updating regions** (WS sidecar, `sseMerger`) do not cause layout thrash when animated
 
 ### 4.3 Core Web Vitals
 - [ ] **LCP** < 2.5s
@@ -147,12 +202,13 @@
 
 ## 6. Testing Checklist
 
-### 6.1 Unit Tests (Jest/Node)
+### 6.1 Unit Tests (Vitest + Node-native)
 - [ ] All new components have tests
 - [ ] Design token utilities tested
 - [ ] Animation utilities tested (reduced motion)
 - [ ] Color contrast utilities tested
 - [ ] Icon wrapper component tested
+- ⚠️ **Not Jest.** The project runs Vitest 4.1.7 and Node-native runners; Jest is not installed. See the notice above.
 
 ### 6.2 Integration Tests
 - [ ] DashboardLayout renders correctly
@@ -168,9 +224,10 @@
 - [ ] **Critical Path 4**: Settings → Appearance → Theme Toggle → Persist
 
 ### 6.4 Visual Regression
-- [ ] **Percy/Chromatic** snapshots for all 50+ pages
+- [ ] **Percy/Chromatic** snapshots for all **114** pages
 - [ ] **Component stories** in Storybook (if available)
 - [ ] **Diff threshold** < 0.1% pixel difference
+- [ ] **Per-page feature flag** so a regression on one page does not require a full rollback
 
 ### 6.5 Accessibility Tests
 - [ ] **axe-core** in Playwright (`@axe-core/playwright`)
@@ -188,6 +245,7 @@
 - [ ] Storybook story exists (if applicable)
 - [ ] All variants documented in component file
 - [ ] Props interface exported
+- [ ] 43 translations added for every new string
 
 ### Per Page
 - [ ] Renders without console errors
@@ -196,6 +254,7 @@
 - [ ] Responsive at 375/768/1024/1440px
 - [ ] Animations smooth (or instant with reduced motion)
 - [ ] Focus management correct
+- [ ] No console errors in production build
 
 ### Per Phase
 - [ ] **Phase 1**: `globals.css` valid, no build errors, dark mode renders
@@ -211,54 +270,58 @@
 ## 8. File Inventory (Modified/New)
 
 ### Phase 1: Foundation
-| File | Status | Lines Changed |
+| File | Status | Measured Size |
 |------|--------|---------------|
-| `src/app/globals.css` | Modified (rewrite) | ~600 |
-| `src/shared/components/Icon.tsx` | New | ~50 |
+| `src/app/globals.css` | Modified (additive migration) | **590 lines** |
+| `src/shared/components/Icon.tsx` | **New** | ~50 |
 
 ### Phase 2: Layout
-| File | Status | Lines Changed |
+| File | Status | Measured Size |
 |------|--------|---------------|
-| `src/shared/components/layouts/DashboardLayout.tsx` | Modified | ~50 |
-| `src/shared/components/Sidebar.tsx` | Modified (major) | ~300 |
-| `src/shared/components/Header.tsx` | Modified | ~100 |
-| `src/shared/components/Breadcrumbs.tsx` | Modified | ~30 |
+| `src/shared/components/layouts/DashboardLayout.tsx` | Modified | 139 |
+| `src/shared/components/Sidebar.tsx` | Modified (major, **staged**) | **758** |
+| `src/shared/components/Header.tsx` | Modified | 286 |
+| `src/shared/components/Breadcrumbs.tsx` | Modified | 182 |
 
 ### Phase 3: Components
-| File | Status | Lines Changed |
+| File | Status | Measured Size |
 |------|--------|---------------|
-| `src/shared/components/Card.tsx` | Modified | ~80 |
-| `src/shared/components/Button.tsx` | Modified | ~120 |
-| `src/shared/components/Input.tsx` | Modified | ~80 |
-| `src/shared/components/Select.tsx` | Modified | ~100 |
-| `src/shared/components/Table.tsx` | New | ~200 |
-| `src/shared/components/Tabs.tsx` | Modified | ~80 |
-| `src/shared/components/Modal.tsx` | Modified | ~120 |
-| `src/shared/components/Badge.tsx` | Modified | ~60 |
-| `src/shared/components/Avatar.tsx` | Modified | ~40 |
-| `src/shared/components/Toast.tsx` / `NotificationToast.tsx` | Modified | ~80 |
+| `src/shared/components/Card.tsx` | Modified | 141 |
+| `src/shared/components/Button.tsx` | Modified | 88 |
+| `src/shared/components/Input.tsx` | Modified | 157 |
+| `src/shared/components/Select.tsx` | Modified | 115 |
+| `src/shared/components/DataTable.tsx` | **EXISTS — audit before creating `Table.tsx`** | — |
+| `src/shared/components/Table.tsx` | **New** (or extend `DataTable`) | ~200 |
+| `src/shared/components/docs/Tabs.tsx` | Exists but **docs-scoped** | — |
+| `src/shared/components/Tabs.tsx` | **New** (or promote the docs one) | ~80 |
+| `src/shared/components/Modal.tsx` | Modified | 267 |
+| `src/shared/components/Badge.tsx` | Modified | 68 |
+| `src/shared/components/Avatar.tsx` | Modified | 81 |
+| `src/shared/components/NotificationToast.tsx` | Modified (or rename to `Toast.tsx`) | 208 |
+
+**Also present — adopt, do not duplicate:** `ColumnToggle` · `FilterBar` · `EmptyState` · `ErrorPageScaffold` · `Loading` · `InfoTooltip` · `CommandPalette` · `Checkbox` · `Collapsible` · `CollapsibleSection` · `NavigationProgress` · `DegradationBadge` · `MonacoEditor` · `PresetSlider` · `PricingModal` · `RequestLoggerV2` — 135 shared component files in total.
 
 ### Phase 4: Core Pages
-| File | Status | Lines Changed |
+| File | Status | Measured Size |
 |------|--------|---------------|
-| `src/app/(dashboard)/dashboard/HomePageClient.tsx` | Modified (major) | ~400 |
-| `src/app/(dashboard)/dashboard/providers/page.tsx` | Modified | ~200 |
-| `src/app/(dashboard)/dashboard/analytics/page.tsx` | Modified | ~150 |
-| `src/app/(dashboard)/dashboard/settings/page.tsx` | Modified | ~200 |
+| `src/app/(dashboard)/dashboard/HomePageClient.tsx` | **Extract first**, then modify | **1,385** |
+| `src/app/(dashboard)/dashboard/providers/page.tsx` | **Extract first**, then modify | **1,951** |
+| `src/app/(dashboard)/dashboard/analytics/page.tsx` | Modified | 155 |
+| `src/app/(dashboard)/dashboard/settings/page.tsx` | Modified (trivial) | **33** |
 
 ### Phase 5: Animations
 | File | Status | Lines |
 |------|--------|-------|
-| `src/shared/lib/animations.ts` | New | ~80 |
+| `src/shared/lib/animations.ts` | **New** (directory exists) | ~80 |
 
 ### Phase 6: Batch Pages (25 pages)
-| Batch | Pages | Est. Total Lines |
-|-------|-------|------------------|
-| 1 | Logs, Costs, Cache, Quota | ~800 |
-| 2 | Combos, API Manager, MCP, A2A, Endpoint | ~1000 |
-| 3 | Playground, Translator, Search, Memory | ~800 |
-| 4 | Agent Skills, CLI Agents, Health, Resilience | ~800 |
-| 5 | Profile, Onboarding, Changelog, System | ~600 |
+| Batch | Pages | Exists? |
+|-------|-------|---------|
+| 1 | Logs, Costs, Cache, Quota | all yes |
+| 2 | Combos, API Manager, MCP, A2A, Endpoint | all yes |
+| 3 | Playground, Translator, Search, Memory | all yes |
+| 4 | Agent Skills, CLI Agents, Health, **Resilience** | ⚠️ `resilience/page.tsx` **does not exist** → `resilience/connections/page.tsx` |
+| 5 | Profile, Onboarding, Changelog, **System** | ⚠️ `system/page.tsx` **does not exist** → `system/1proxy/`, `system/proxy/`, `system/mitm-proxy/` (the last is a 40-line redirect stub to `/dashboard/tools/agent-bridge`) |
 
 ### Phase 7: QA
 | File | Status |
@@ -274,11 +337,14 @@
 ```json
 {
   "dependencies": {
-    "@phosphor-icons/react": "^2.1.0",
     "framer-motion": "^11.0.0"
   }
 }
 ```
+
+> **`@phosphor-icons/react` removed — optional.** The app already ships Material Symbols `^0.45.2`, self-hosted. Adopting Phosphor is a 135-component migration plus a new dependency and a full accessible-name re-audit. **Recommendation:** keep Material Symbols behind a thin `Icon.tsx` seam.
+>
+> **Framer Motion is genuinely new.** It is not a declared dependency today and appears nowhere in `src/`. Verify Motion/React 19.2.8 compatibility (React is pinned exact) and check the frozen bundle-size ratchet so the addition is visible.
 
 ---
 
@@ -286,12 +352,13 @@
 
 | Area | Before | After | Migration |
 |------|--------|-------|-----------|
-| **Icons** | Material Symbols | Phosphor | Update all imports |
-| **Typography** | System fonts | DM Sans | globals.css only |
-| **Colors** | Coral/Indigo palette | Charcoal + Neon | globals.css only |
+| **Icons** | Material Symbols | *unchanged* (recommended) | None, if `Icon.tsx` wraps Material Symbols |
+| **Typography** | Inter | *unchanged* (recommended) | None, if Inter is kept |
+| **Colors** | Coral/Indigo palette | Charcoal + Neon | globals.css only (additively) |
 | **Button** | 2 variants | 3 variants (+ghost) | Add `variant` prop |
 | **Card** | 1 style | 3 variants | Add `variant` prop |
 | **Badge** | 4 colors | 5 semantic | Update `variant` values |
+| **Colour mode** | light + dark + system | dark-only *(proposed)* | ⚠️ **This removes capability.** Document as a decision with its accessibility consequences |
 
 ---
 
@@ -318,6 +385,8 @@
 - [ ] `npm run test:vitest` passes
 - [ ] `npm run check:docs-all` passes
 - [ ] `npm run build` succeeds
+- [ ] `npm run dashboard-typecheck` passes — **mandatory**, because `next.config.mjs:296` sets `typescript.ignoreBuildErrors: true`, so a green build is **not** evidence of type safety
+- [ ] `npm run check:i18n-ui-coverage` passes (100% across 43 locales)
 
 ---
 
